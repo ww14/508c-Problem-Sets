@@ -1,0 +1,234 @@
+********* WWS508c PS6 *********
+*  Spring 2018		      *
+*  Author : William Willoughby*
+*  Email: ww14@princeton.edu  *
+*******************************
+//All errors are my own. Please email me if you see any errors or typos//
+
+
+cd "C:\Users\William Willoughby\Documents\Princeton\Spring 2018\508\psets\ps6"
+
+clear all
+use ps6_probation.dta
+set more off 
+********************************************************************************
+**                                   P1                                       **
+********************************************************************************
+
+hist dist_from_cut if dist_from_cut~=0, width(0.05) 
+graph save p1_hist.gph,replace
+
+********************************************************************************
+**                                   P2                                       **
+********************************************************************************
+
+//Testing for discontinutiy using a local linear regression//
+gen T= 1 if dist_from_cut<0
+replace T=0 if dist_from_cut>=0
+
+//creating index for distance from cutoff//
+ge index= dist_from_cut
+ge index2=(dist)^2
+ge index3=(dist)^3
+ge TD = T*index
+ge TD2= T*index2
+ge TD3= T*index3
+
+foreach var of varlist hsgrade_pct male age bpl eng{
+
+local d "T"
+local poly1 "index"
+local poly2 "index index2"
+local poly3 "index index2 index3"
+local d1 "TD"
+local d2 "TD2"
+local d3 "TD3"
+local sample1 "dist>=-0.6 & dist<=0.6"
+
+reg `var' `d' `poly1' `d1'  if `sample1'
+reg `var' `d' `poly3' `d1' `d2' `d3'  if `sample1'
+
+}
+
+********************************************************************************
+**                                   P3                                       **
+********************************************************************************
+
+foreach var of varlist probation_year1 probation_ever {
+
+local d "T"
+local poly1 "index"
+local poly2 "index index2"
+local poly3 "index index2 index3"
+local d1 "TD"
+local d2 "TD2"
+local d3 "TD3"
+local sample1 "dist>=-0.6 & dist<=0.6"
+
+reg `var' `d' `poly1' `d1'  if `sample1'
+reg `var' `d' `poly3' `d1' `d2' `d3'  if `sample1'
+
+}
+
+********************************************************************************
+**                                   P4                                       **
+********************************************************************************
+
+//creating RD graphs using local linear & 3rd order polynomials//
+foreach var of varlist probation_year1 probation_ever {
+
+local d "T"
+local poly1 "index"
+local poly2 "index index2"
+local poly3 "index index2 index3"
+local d1 "TD"
+local d2 "TD2"
+local d3 "TD3"
+local sample1 "dist>=-0.6 & dist<=0.6"
+
+reg `var' `d' `poly1' `d1'  if `sample1'
+predict yl1_`var' if dist<0
+predict yr1_`var' if dist>0
+reg `var' `d' `poly3' `d1' `d2' `d3'  if `sample1'
+predict yl3_`var' if dist<0
+predict yr3_`var' if dist>0
+
+}
+
+//creating running variable dummies for bins //
+gen x = dist
+sort x 
+gen z=.
+forvalues i=0(1)9{
+local t = 0.06*`i'
+local k = `t'+0.06
+qui replace z=`k' if x>=`t' & x<`k'&dist>=0
+qui replace z=`k'*(-1) if x<=`t'*(-1) & x>`k'*(-1) & dist<0
+}
+
+//now graphing RD//
+forvalues i=1(2)3 {
+foreach var of varlist probation_year1 probation_ever {
+preserve
+tab z, gen(d)
+reg `var' d1-d9 d11-d20 
+predict y,xb
+collapse y, by(z)
+sort z
+gen q=_n
+save means_`var'_`i'.dta,replace
+restore
+
+preserve
+
+sort z
+collapse yl`i'_`var' yr`i'_`var', by(z)
+gen q=_n
+merge m:m q using "means_`var'_`i'.dta"
+drop if z==.
+
+graph twoway /*
+*/(scatter y z if z<0 & z>=-0.6, sort mcolor(black) msize(vsmall) msymbol(circle)) /*
+*/(scatter y z if z>0 & z<=0.6, sort mcolor(black) msize(vsmall) msymbol(circle)) /*
+*/(line yl`i' z if (z>=-0.6 & z<0),lcolor(black) lpat(solid)) /*
+*/(line yr`i' z if (z<=0.6 & z>0),lcolor(black) lpat(solid)) /*
+*/ ,xline(0, lcolor(black) lpat(dash))/*
+*/ legend(off) title("`var'") xtitle("distance from cutoff") xlabel(-0.6 -0.4 -0.2 0 0.2 0.4 0.6) graphregion(fcolor(white)  ifcolor(white) color(white) icolor(white)) 
+graph save "RD_`var'_`i'.gph", replace
+restore
+ }
+} 
+
+********************************************************************************
+**                                   P5                                       **
+********************************************************************************
+
+foreach var of varlist left_school nextGPA {
+
+local d "T"
+local poly1 "index"
+local poly2 "index index2"
+local poly3 "index index2 index3"
+local d1 "TD"
+local d2 "TD2"
+local d3 "TD3"
+local sample1 "dist>=-0.6 & dist<=0.6"
+
+reg `var' `d' `poly1' `d1'  if `sample1'
+reg `var' `d' `poly3' `d1' `d2' `d3'  if `sample1'
+
+}
+
+********************************************************************************
+**                                   P6                                       **
+********************************************************************************
+
+foreach var of varlist gradin4-gradin6 {
+
+local d "T"
+local poly1 "index"
+local poly2 "index index2"
+local poly3 "index index2 index3"
+local d1 "TD"
+local d2 "TD2"
+local d3 "TD3"
+local sample1 "dist>=-0.6 & dist<=0.6"
+
+reg `var' `d' `poly1' `d1'  if `sample1'
+reg `var' `d' `poly3' `d1' `d2' `d3'  if `sample1'
+
+}
+
+//estimate these effects separately for the below- and above- median grades in HS//
+//above-median//
+foreach var of varlist gradin4-gradin6 {
+
+local d "T"
+local poly1 "index"
+local poly2 "index index2"
+local poly3 "index index2 index3"
+local d1 "TD"
+local d2 "TD2"
+local d3 "TD3"
+local sample1 "dist>=-0.6 & dist<=0.6"
+
+reg `var' `d' `poly1' `d1'  if `sample1'&hsgrade>=50
+reg `var' `d' `poly3' `d1' `d2' `d3'  if `sample1'&hsgrade>=50
+
+}
+
+//below-median//
+foreach var of varlist gradin4-gradin6 {
+
+local d "T"
+local poly1 "index"
+local poly2 "index index2"
+local poly3 "index index2 index3"
+local d1 "TD"
+local d2 "TD2"
+local d3 "TD3"
+local sample1 "dist>=-0.6 & dist<=0.6"
+
+reg `var' `d' `poly1' `d1'  if `sample1'&hsgrade<50
+reg `var' `d' `poly3' `d1' `d2' `d3'  if `sample1'&hsgrade<50
+
+}
+
+********************************************************************************
+**                                   P7                                       **
+********************************************************************************
+
+//implementing an IV estimation using the dummy (T) for below-cutoff //
+//as an instrumentfor ever being in probation//
+
+//Fuzzy RD approach//
+foreach var of varlist gradin4-gradin6 {
+local d "T"
+local poly1 "index"
+local poly2 "index index2"
+local poly3 "index index2 index3"
+local sample1 "dist>=-0.6 & dist<=0.6"
+
+ivregress 2sls `var' `poly1' (probation_ever=`d')
+ivregress 2sls `var' `poly3' (probation_ever=`d')
+}
